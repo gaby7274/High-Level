@@ -1,5 +1,7 @@
+
 import java.awt.*;
 import javax.swing.*;
+
 import java.awt.event.*;
 import java.util.*;
 
@@ -197,14 +199,15 @@ public class Proj2 extends JFrame implements ActionListener {
 			Card card = cardDeck.dealCard();
 
 			if (card != null) {
-				if (src == p1Deck) {
-					p1Hand.addElement(card);
-					p1Lay.setVisible(true);
-					p1Stack.setVisible(false);
-					p1Deck.setVisible(false);
-					p1LayOnStack.setVisible(true);
-				} else
-					p2Hand.addElement(card);
+
+				p1Hand.addElement(card);
+				p1Lay.setVisible(true);
+				p1Stack.setVisible(false);
+				p1Deck.setVisible(false);
+				p1LayOnStack.setVisible(true);
+				System.out.println("Player 1 Drew from the Deck");
+				System.out.println("Hand now:");
+				System.out.println(p1Hand.toString());
 			}
 			if (cardDeck.getSizeOfDeck() == 0) {
 				deckPile.setIcon(new ImageIcon(Card.directory + "blank.gif"));
@@ -231,6 +234,9 @@ public class Proj2 extends JFrame implements ActionListener {
 
 				p1Hand.addElement(card);
 				p1Lay.setVisible(true);
+				System.out.println("Player 1 drew from the Stack");
+				System.out.println("Hand now:");
+				System.out.println(p1Hand.toString());
 				p1Stack.setVisible(false);
 				p1Deck.setVisible(false);
 				p1LayOnStack.setVisible(true);
@@ -282,14 +288,18 @@ public class Proj2 extends JFrame implements ActionListener {
 					Card card = (Card) obj;
 					stackDeck.addCard(card);
 					topOfStack.setIcon(card.getCardImage());
+
 					p1Lay.setVisible(false);
 					p1LayOnStack.setVisible(false);
+					System.out.println("laying " + card + " on the Stack");
+					System.out.println("Hand now:");
+					System.out.println(p1Hand.toString());
 					if (p1Hand.isEmpty()) {
 						JOptionPane.showMessageDialog(null, "Player 1 WON!!");
 						System.out.println("Player 1 WON!!");
 					}
 					System.out.println("Player 2's turn");
-					if (!computer.theComputerTurn(this)) {
+					if (!computer.theComputerTurn(cardDeck, stackDeck, p2Hand, topOfStack, deckPile, setPanels)) {
 						if (cardDeck.getSizeOfDeck() == 0) {
 							if (deckIsOver(p1Hand, p2Hand)) {
 								JOptionPane.showMessageDialog(null, "Player 1 WON!!");
@@ -324,7 +334,7 @@ public class Proj2 extends JFrame implements ActionListener {
 		int suitIndex = Card.getSuitIndex(suit);
 		int rankIndex = Card.getRankIndex(rank);
 		// setPanels[rankIndex].array[suitIndex].setText(card.toString());
-		System.out.println("laying " + card);
+		System.out.println("laying " + card + " on a set");
 		setPanels[rankIndex].array[suitIndex].setIcon(card.getCardImage());
 	}
 

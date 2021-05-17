@@ -1,5 +1,7 @@
+
 import java.awt.*;
 import javax.swing.*;
+
 import java.awt.event.*;
 import java.util.*;
 
@@ -9,7 +11,8 @@ public interface ComputerInterface extends Comparable {
 
     public Computer();
 
-    public boolean theComputerTurn(Proj2 table);
+    public boolean theComputerTurn(Deck cardDeck, Deck stackDeck, DefaultListModel p2Hand, JLabel topOfStack,
+            JLabel deckPile, SetPanel[] setPanels);
 
     public boolean drawTurn(Deck cardDeck, Deck Stack, DefaultListModel p2Hand, JLabel topOfStack, JLabel deckPile);
 
