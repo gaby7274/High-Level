@@ -7,12 +7,13 @@
 
 <head>
 	<title>Gabriel's website</title>
+
 	<!-- Bootstrap CSS -->
 	<link rel="stylesheet" type="text/css" href="css/bootstrap.min.css">
 
 	<!-- Goggle Font -->
 	<link rel="stylesheet" type="text/css" href="http://fonts.googleapis.com/css?family=Roboto:400,100,300,500">
-
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
 	<!-- Font Css -->
 	<link rel="stylesheet" type="text/css" href="css/font-awesome.min.css">
 
@@ -21,15 +22,15 @@
 
 	<!-- Animation Css -->
 	<link rel="stylesheet" href="css/animate.css">
-
+	
 
 </head>
 
 <body>
 	<!-- Header -->
-	<div class="header-div">
+	<div class="hero-image">
 
-		<nav class="navbar navbar-default">
+		<nav class="navbar navbar-default hero-nav">
 			<div class="container">
 				<!-- Brand and toggle get grouped for better mobile display -->
 				<div class="navbar-header logo-div bounceInLeft wow" data-wow-duration="2s">
@@ -46,10 +47,16 @@
 				<div class="collapse navbar-collapse top-right-menu-ul bounceInRight wow"
 					id="bs-example-navbar-collapse-1" data-wow-duration="4s">
 					<ul class="nav navbar-nav navbar-right">
-						<li><a href="#theElementary">The Elementary</a></li>
-						<li><a href="#OLAS">OLAS</a></li>
 
+						
+			
+						<li><a href="#Internship">Music and Graphs</a></li>
+						<li><a href="#OLAS">OLAS</a></li>
+						<li><a href="#PersonalGame">Personal Game</a></li>
+						<li><a href="#theElementary">The Elementary</a></li>
+						
 						<li><a href="#Testimonial">Testimonial</a></li>
+						
 
 					</ul>
 				</div><!-- End navbar-collapse -->
@@ -58,24 +65,144 @@
 
 		<div class="container wow bounceInDown" data-wow-duration="5s">
 			<div class="row">
-				<div class="col-md-offset-2 col-md-8 text-center slide-text">
+				<div class="col-md-offset-1 col-md-10 text-center slide-text">
 					<h1>Gabriel A. Santiago Plaza</h1>
-					<p>Welcome to my profile, to have a brief description of me, I am a computer scientist who really
-						does not like the way the bachelor's program is made for people who want to work, and not expose
-						the dangers of being a bad, non-ethical programmer.
-						Other than that, here are some projects that I worked on, each link shows you to my branch of a
-						github directory. Most of these projects are for the common good, and my future work
-						would be for the exact same purpose.
+					<p> Welcome to my under construction website, where you can see my topics of interest flourish; Music, Software Engineering with Social Impact,
+						Video Game Development (not too complex yet), and Research. Future plans may include: work as public employee with the 
+						University of Puerto Rico while playing piano at pubs, or be in heaven by working in Visualization of Harmonical Changes in Salsa and other
+						latin rhythms. 
 					</p>
 				</div><!-- End col-md-8-->
-				<div class="col-md-offset-2"></div><!-- End col-md-offset-2 -->
+				<div class="col-md-offset-1"></div><!-- End col-md-offset-2 -->
 			</div><!-- End Row -->
 		</div><!-- End Contanier -->
 
 	</div><!-- End header-div -->
 
-	<!-- Feature -->
 
+	<div class="container" id="Internship">
+		<div class="row">
+			<div class="col-md-12">
+				<div class="main_heading">
+					<h1>NSF Internship</h1>
+					<div class="text-center"><span class="underline"></span></div>
+				</div>
+			</div><!-- End col-md-12 -->
+		</div><!-- End row -->
+
+	<div class = 'row'>
+		<div class="col-md-12 services-box-gray col-sm-6">
+			<div class="services-box">
+				<i class="fa fa-tag"></i>
+				<h4>Detection of Harmonical Changes using Weighted Graph Traversal</h4>
+				<p>
+					We developped a graph-theoretic AI agent, augmented by modern tonal music theory, to detect harmonic changes in Baroque musical scores, such as major mode Fugues and Preludes from J.S. Bach's Well-Tempered Clavier, Book I. In this approach, we seek a middle-ground between Graph Theoretic AI and Modern Tonal Theory to convert scores into computer-accessible data, in order to implement the algorithms for logical and intuitive reasoning necessary to identify harmonic changes throughout a given score. In further detail: We developed an artificially-intelligent, weighted multigraph agent which represents and navigates common chord progressions of scores, usually following the Tonal “Circle of Fifths”, with the root node as the either the tonic chord or starting musical key. With such a graph-based agent, we incorporate graph-traversal algorithms, where navigation between vertices represent chord progressions in a score. Finally, we used Scalar Vector Graphics (SVG) to artistically represent the harmonic sequences the agent perceived, using transforming petal-shaped Bezier curves.
+				</p>
+				<p>
+					Here are some examples
+				</p>
+				
+				<a href="images/BWV846Fugue-2.svg" alt="First slide" target="_blank">BWV846 Fugue</a>
+					
+				<a href="images/BWV846Prelude-2.svg" alt="Second slide" target="_blank">BWV846 Prelude</a>
+				
+				<a href="images/BWV848Prelude-2.svg" alt="Third slide" target="_blank">BWV848 Prelude</a>
+				
+				<a href="images/BWV848Fugue-2.svg" alt="Fourth slide" target="_blank">BWV848 Fugue</a>
+			</div>
+		</div><!-- End col-md-4-->
+	</div>
+
+		<br>
+
+
+
+
+
+	</div>
+
+
+
+	<div class="container" id="OLAS">
+		<div class="row">
+			<div class="col-md-12">
+				<div class="main_heading">
+					<h1>OLAS</h1>
+					<div class="text-center"><span class="underline"></span></div>
+				</div>
+			</div><!-- End col-md-12 -->
+		</div><!-- End row -->
+
+		<div class="col-md-6 services-box-gray col-sm-6">
+			<div class="services-box">
+				<i class="fa fa-rocket"></i>
+				<h4>Abstract</h4>
+				<p>A 2 year project for the University in their existent application OLAS used to facilitate Administration reports
+					for accreditation, Annual Plans for Assessments in all the University's programs, and many other key features. 
+				</p>
+			</div>
+		</div><!-- End col-md-4-->
+		<div class="col-md-6 col-sm-6">
+			<div class="services-box">
+				<i class="fa fa-cogs"></i>
+				<h4>What did we do?</h4>
+				<p>We worked on an update that gave a lot of more flexibility within the app. We added
+					features  that changed the way Professors assess their students, giving them flexibility
+					to assess almost any way that they wanted (like the song).
+				</p>
+			</div>
+		</div><!-- End col-md-4-->
+		
+
+		<br>
+		<div class="text-center col-md-12">
+			<div class="text-center"><span class="underline2"></span></div>
+			<img src="images/olas.gif">
+		</div>
+
+
+
+
+	</div><!-- End container -->
+
+	<br>
+
+	<div class="container" id="PersonalGame">
+		<div class="row">
+			<div class="col-md-12">
+				<div class="main_heading">
+					<h1>Personal Game Project</h1>
+					<div class="text-center"><span class="underline"></span></div>
+				</div>
+			</div><!-- End col-md-12 -->
+		</div><!-- End row -->
+
+		<div class="col-md-4 services-box-gray col-sm-6">
+			<div class="services-box">
+				<i class="fa fa-cogs"></i>
+				<h4>What is this?</h4>
+				<p>
+					This project was made in an intensive 2 weeks, using THREEjs. It was made for fun, to showcase it 
+
+					as fun projects students can do in Computer Science. You can play 
+					<a href="assg3-threejs/index.html" target="_blank">here</a>
+				</p>
+			</div>
+		</div><!-- End col-md-4-->
+		<div class="col-md-8 text-center col-sm-6">
+
+			<img src="images/game.gif">
+			
+		</div><!-- End col-md-4-->
+		
+
+
+
+
+
+
+	</div>
+	<!-- End Services -->
 	<div class="container" id="theElementary">
 		<div class="row">
 			<div class="col-md-12">
@@ -153,60 +280,6 @@
 		</div><!-- ENd container -->
 	</div>
 
-	<!-- End Feature -->
-
-
-	<!-- Services -->
-
-	<div class="container" id="OLAS">
-		<div class="row">
-			<div class="col-md-12">
-				<div class="main_heading">
-					<h1>OLAS</h1>
-					<div class="text-center"><span class="underline"></span></div>
-				</div>
-			</div><!-- End col-md-12 -->
-		</div><!-- End row -->
-
-		<div class="col-md-4 services-box-gray col-sm-6">
-			<div class="services-box">
-				<i class="fa fa-rocket"></i>
-				<h4>Abstract</h4>
-				<p>I currently work for the University in their existant application used to facilitate the acreditation
-					of the university</p>
-			</div>
-		</div><!-- End col-md-4-->
-		<div class="col-md-4 col-sm-6">
-			<div class="services-box">
-				<i class="fa fa-cogs"></i>
-				<h4>Where are we now?</h4>
-				<p>We are currently working on an update that gives a lot of more flexibility t the app. We are adding
-					features for each of the four roles; Admin, coordinators, Professors and school faculty </p>
-			</div>
-		</div><!-- End col-md-4-->
-		<div class="col-md-4 services-box-gray col-sm-6">
-			<div class="services-box">
-				<i class="fa fa-support"></i>
-				<h4>Link</h4>
-				<p>Here is the <a href="https://git.ccom.uprrp.edu/CDCC/OLAS.git">link </a>and my branch is
-					gabriel_branch.
-				</p>
-			</div>
-		</div><!-- End col-md-4-->
-
-		<br>
-		<div class="text-center col-md-12">
-			<div class="text-center"><span class="underline2"></span></div>
-			<img src="images/olas.gif">
-		</div>
-
-
-
-
-	</div><!-- End container -->
-
-	<!-- End Services -->
-
 
 
 	<!-- Testimonial -->
@@ -222,10 +295,13 @@
 			</div><!-- End row -->
 
 			<div class="col-md-12">
-				<p>Even if this is not my passion, I am extremely grateful for my skills and my experiences. I've helped
-					a lot of people with my work and the upcoming ones are going to be better. My purpose in life is
-					that my career would be freelancing projects for people doing the greater good and not working for
-					multimillionaire companies. </p>
+				<p>
+					After five years of studying Computer Science, my Bachelor's Degree is now over, opening
+					new experiences for me to discover. With plans of working for the community, and keep working for the greater good,
+					it would be a dream to mix Music and Computer Science. 
+					Como buen boricua, vamo' allá. 
+
+				</p>
 			</div><!-- End col-md-12-->
 
 		</div><!-- End container -->
