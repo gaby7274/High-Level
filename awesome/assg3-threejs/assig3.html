@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <title>three.js webgl - template</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+  <style>
+    canvas {
+      border: dashed 2px lightgray;
+    }
+
+    canvas:focus {
+      /* Make clear when canvas does not listen to keyboard */
+      border: solid 2px black;
+    }
+
+    kbd {
+      font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+      font-size: 90%;
+      background-color: #ddd;
+      border: solid 1pt black;
+      border-radius: 4px;
+      padding: 0px 4px;
+    }
+  </style>
+</head>
+<!-- Note: Recent versions of THREE.js use ES6 modules, which is not -->
+<!-- compatible with the loading of three.js as a script: (See below) -->
+<!-- <script src="js/three.js"></script> -->
+<!-- <script src="js/dat.gui.min.js"></script> -->
+<script type="module">
+  // This JS code is defined as a module to be compatible with THREE.js:
+  // Caution: variables stop being global, read below
+  import * as THREE from './three/build/three.module.js';
+  import { OrbitControls } from './three/examples/jsm/controls/OrbitControls.js';
+  import { GLTFLoader } from './three/examples/jsm/loaders/GLTFLoader.js';
+
+  import * as dat from './js/dat.gui.module.js'
+
+  /* ### Model ### */
+
+  function initModel() {
+    let clock = new THREE.Clock();
+    clock.start()
+
+    // Global variable model
+    window.model = {
+      bumpScale: 1,
+
+      x: 120,
+      y: 20,
+      z: 120,
+      velocity: 50, // In case you translate cube in animate
+      angle: 0,
+      armPhi: -30,
+      armPsi: -40,
+      angleVelocity: 50, // In case you rotate cube in animate
+
+      showPlane: true,
+      showPlaneGrid: true,
+      showAxisHelper: true,
+
+      pointLightAngle: 45, // Degrees
+      pointLightSpeed: 360 / 4, // Deg/Second. 360/4: one cycle in 4 sec
+      animateLight: true,
+
+      cameraFov: 75,
+
+      clock: clock
+    }
+  }
+
+  /* ### GUI controls ### */
+  function initGUI() {
+    window.gui = new dat.GUI(); // Define as global, use as gui
+
+    gui.add(model, 'bumpScale').min(-5).max(5).step(0.1).onChange(update);
+
+    gui.add(model, 'x').min(-200.0).max(200.0).step(10).onChange(update);
+    gui.add(model, 'y').min(-20).max(200.0).step(10).onChange(update);
+    gui.add(model, 'z').min(-200.0).max(200.0).step(10).onChange(update);
+    gui.add(model, 'angle').min(-180.0).max(180.0).step(5).onChange(update);
+    gui.add(model, 'armPhi').min(-180.0).max(180.0).step(5).onChange(update);
+    gui.add(model, 'armPsi').min(-180.0).max(180.0).step(5).onChange(update);
+
+    gui.add(model, 'showPlane').onChange(update);
+    gui.add(model, 'showPlaneGrid').onChange(update);
+    gui.add(model, 'showAxisHelper').onChange(update);
+    gui.add(model, 'animateLight').onChange(update);
+
+    gui.add(model, 'cameraFov').min(5).max(175).step(5).onChange(update);
+  }
+
+  function updateGUI(theGui) {
+    if (typeof (theGui) === "undefined") theGui = gui;
+
+    // Update the GUI display based on current parameters
+    // Source: http://stackoverflow.com/a/29069189
+    for (var i in gui.__controllers) {
+      theGui.__controllers[i].updateDisplay();
+    }
+    // Do recursion to update inside folders
+    for (var f in theGui.__folders) {
+      updateGUI(theGui.__folders[f]);
+    }
+  }
+  window.updateGUI = updateGUI // Declare as global scope
+
+  /* ### Keyboard ### */
+  function initKeys(canvas) {
+    // Make sure the canvas can receive the key events
+    canvas.setAttribute('tabindex', '0');
+    canvas.focus();
+    // Workaround: give the focus back to the canvas when clicked
+    // keyboard events are not received when canvas is not focused
+    canvas.addEventListener('mousedown', function () { canvas.focus() });
+
+    // Register the keyDown and keyUp events
+    canvas.addEventListener("keydown", onKeyDown, true);
+    canvas.addEventListener("keyup", onKeyUp, true);
+  }
+  // Callbacks for discrete key events
+  function onKeyDown(event) {
+    // Comment this to stop displaying key pressed on the console
+    console.log(event)
+    event.preventDefault();
+
+    // Check key press using event.key
+    if (event.code == "ArrowUp") {
+      console.log('Pressed ArrowUp')
+    }
+
+    updateGUI() // Update dat.GUI display in case we changed some parameters
+    update()    // Update scenegraph and render
+  }
+
+  function onKeyUp(event) {
+  }
+
+  /* ### Main functions: init, update, animate, render... ### */
+
+  // Any variable you want to access from the console need
+  // to be initialized as windows.namevariable = value
+  // A bit curbersome for init, but can be accessed 
+
+  // Initialize here any global variable you want to access from the console
+  window.scene = undefined
+  // From now on, you can access windows.scene as just scene in the code
+  window.mesh = undefined
+  window.plane = undefined
+  window.cube = undefined
+  window.lowerarm = undefined
+  window.upperarm = undefined
+  window.pointLight = undefined
+  window.camera = undefined
+
+  // Rest of the variables can be declared as local to the module
+  // but cannot be accessed from the console
+  var canvas
+  var renderer
+  var axesHelper
+  var planeGrid
+  var texture
+  var pointLightMesh
+  var controls
+
+  function initScene() {
+
+    // ##### 1. Create renderer and bind it to the canvas #####
+
+    canvas = document.getElementById("canvasID")
+    renderer = new THREE.WebGLRenderer({
+      canvas: canvas,
+      preserveDrawingBuffer: true
+    });
+    //document.body.appendChild(renderer.domElement)
+    renderer.setClearColor(0xe0f0ff)
+    //renderer.setClearColor(0xffffff)
+
+
+    // ##### 2. Create a scene and add objects to it #####
+
+    scene = new THREE.Scene()
+
+    // Auxiliary elements
+
+    planeGrid = new THREE.GridHelper(500, 20); // Directly in XZ plane
+    planeGrid.material.linewidth = 1;
+    scene.add(planeGrid);
+
+    axesHelper = new THREE.AxesHelper(100);
+    axesHelper.material.linewidth = 5
+    scene.add(axesHelper);
+
+
+    // Q1. CREATE A KNOT TORUS SITTING ON TOP OF THE PLANE GRID
+
+    // Q2. CREATE A TEXTURED PLANE
+
+
+    /* TODO */
+
+
+    // Q3. LOAD A PREMADE MODEL
+
+
+    /* TODO */
+
+
+    // Q4. CREATE A ROBOT
+
+    // First cube here as an example
+    let cubegeom = new THREE.BoxGeometry(40, 40, 40);
+    cubegeom.applyMatrix4(new THREE.Matrix4().makeTranslation(0, 20, 0)); // applyMatrix works also
+    let cubemat = new THREE.MeshPhongMaterial({
+      color: "#0000FF", specular: "#FFFFFF", shininess: 30,
+      side: THREE.DoubleSide
+    });
+    cube = new THREE.Mesh(cubegeom, cubemat)
+    scene.add(cube)
+
+    /* TODO */
+
+
+
+    // ##### 3. Add lights to the scene #####
+    var ambientLight = new THREE.AmbientLight(0x202020);
+    scene.add(ambientLight)
+
+    pointLight = new THREE.PointLight(0xfffff0)
+    pointLight.position.set(150, 250, 125)
+    scene.add(pointLight)
+
+    // Add a sphere to be able to see where the point light is located
+    var pointLightGeo = new THREE.SphereGeometry(10, 8, 8)
+    var pointLightMat = new THREE.MeshBasicMaterial({ color: 0xfffff0, wireframe: false })
+    pointLightMesh = new THREE.Mesh(pointLightGeo, pointLightMat)
+    // Make it a child of pointLight so it is located in the same position
+    pointLight.add(pointLightMesh)
+
+
+    // ##### 4. Create camera #####
+
+    camera = new THREE.PerspectiveCamera(model.cameraFov, canvas.width / canvas.height, 1, 20000);
+    camera.position.set(250, 200, 350)
+    camera.lookAt(new THREE.Vector3(0, 0, 0))
+
+
+    // ##### 5. Add orbit controls #####
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.addEventListener('change', render); // this line is required if there is no animation loop
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.10;
+    controls.enableZoom = true;
+    controls.enableKeys = false; // Disable keys so we can use them ourselves
+    controls.rotateSpeed = 0.2;
+  }
+
+  function tick() {
+    // Keep calling tick indefinitely
+    requestAnimationFrame(tick);
+
+    animate()
+    update() // update and render
+  }
+
+  function animate() {
+    //update time
+    var absolute = model.clock.elapsedTime; // absolute = "elapsed" from start
+    var delta = model.clock.getDelta(); // delta from last call to animate (elapsed in the asteroid assg1)
+
+    /* Complete here to modify model based on absolute or delta time */
+    if (model.animateLight) {
+      model.pointLightAngle += delta * model.pointLightSpeed;
+    }
+  }
+
+  /* Update scene and redraw after changing parameters */
+  function update() {
+
+    // Update pointLight position based on model.pointLightAngle
+    let rad = model.pointLightAngle / 180 * Math.PI
+    pointLight.position.set(200 * Math.cos(rad), 250, 200 * Math.sin(rad))
+
+    // TODO: Update any scenehgraph paramaters from the model
+
+    // Q4a: update loweram.rotation and upperarm.rotation
+    // TODO
+
+    // Q4b: Update cube position and angle based on model
+    // Note: nothing to change here, you should modify the model in onKeyDown or animate
+    cube.position.set(model.x, model.y, model.z)
+    cube.rotation.set(0, model.angle / 180 * Math.PI, 0)
+
+    // Helpers: plane and axes
+    //plane.visible = model.showPlane;
+    planeGrid.visible = model.showPlaneGrid;
+    axesHelper.visible = model.showAxisHelper;
+
+    // Can also update camera parameters
+    camera.fov = model.cameraFov
+    camera.updateProjectionMatrix()
+
+    // Rerender automatically each time the scenegraph has been updated
+    render()
+  }
+
+  function render() {
+    renderer.render(scene, camera);
+  }
+
+  function start() {
+    initModel()
+    initGUI()
+    initScene()
+    initKeys(canvas)
+
+    // Option 1: Call update only when something changed 
+    //update() // Update scenegraph and draw for first time
+    // Option 2: Call update inside tick at video framerate
+    tick() // Start animation
+  }
+
+  // Export to global scope to be visible from HTML
+  window.start = start
+  window.render = render
+  window.update = update
+  // Add any function you want to call from the console
+
+  console.log(`%cIMPORTANT: if you get the error "Uncaught ReferenceError: myVar is not defined", 
+remember this JS code runs in STRICT MODE https://www.w3schools.com/js/js_strict.asp.
+- you must declare each variable before use using "let myVar;", "var myVar;", or "window.myVar=undefined".
+- after this declaration, you can use myVar in the code with block, function or global scope respectively.`, "color:blue;")
+</script>
+
+<body onload='start();'>
+
+  <div style="float: left;">
+    <canvas id="canvasID" width="600" height="600"></canvas>
+    <br>3d Scene
+    <br>Use <b>Mouse</b> to orbit around the scene
+    <br>Use <b>Scroll</b> to zoom in and out of the scene
+    <br>Use <b>GUI.dat</b> on the right to transform/move each object and to show/hide helpers
+    <br>
+    <br><b style="color:red">EXAMPLE OF CONTROLS. UPDATE FOR YOUR OWN CODE</b>
+    <br>
+    <br>Robot controls
+    <br>Use <b>Keyboard</b> <kbd>&uarr;</kbd> and <kbd>&darr;</kbd> to move the robot
+    <br>Use <b>Keyboard</b> <kbd>&rarr;</kbd> and <kbd>&larr;</kbd> to rotate the robot
+    <br>Use <b>Keyboard</b> <kbd>A</kbd> and <kbd>Z</kbd> to control lower robot arm
+    <br>Use <b>Keyboard</b> <kbd>S</kbd> and <kbd>X</kbd> to control upper robot arm
+  </div>
+
+</body>
+
+</html>

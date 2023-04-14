@@ -1,0 +1,2213 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>three.js webgl - template</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <style>
+        canvas {
+            border: dashed 2px lightgray;
+        }
+
+        canvas:focus {
+            /* Make clear when canvas does not listen to keyboard */
+            border: solid 2px black;
+        }
+
+        kbd {
+            font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+            font-size: 90%;
+            background-color: #ddd;
+            border: solid 1pt black;
+            border-radius: 4px;
+            padding: 0px 4px;
+        }
+    </style>
+</head>
+<!-- Note: Recent versions of THREE.js use ES6 modules, which is not -->
+<!-- compatible with the loading of three.js as a script: (See below) -->
+<!-- <script src="js/three.js"></script> -->
+<!-- <script src="js/dat.gui.min.js"></script> -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script type="module">
+    // This JS code is defined as a module to be compatible with THREE.js:
+    // Caution: variables stop being global, read below
+    import * as THREE from './three/build/three.module.js';
+    import { OrbitControls } from './three/examples/jsm/controls/OrbitControls.js';
+    // import { FirstPersonControls } from './three/examples/jsm/controls/FirstPersonControls.js';
+    import { PointerLockControls } from './three/examples/jsm/controls/PointerLockControls.js'
+    import { GLTFLoader } from './three/examples/jsm/loaders/GLTFLoader.js';
+    import { CSS2DRenderer, CSS2DObject } from './three/examples/jsm/renderers/CSS2DRenderer.js';
+
+    import * as dat from './js/dat.gui.module.js'
+
+    function clamp(n, min, max) {
+        if (n > max) {
+            return max;
+        } else if (n < min) {
+            return min
+        } else {
+            return n;
+        }
+    }
+    /* ### Model ### */
+
+    function initModel() {
+        let clock = new THREE.Clock();
+        clock.start()
+
+        // Global variable model
+        window.model = {
+            bumpScale: 1,
+
+            x: 120,
+            y: 20,
+            z: 120,
+            velocity: new THREE.Vector3(), // In case you translate cube in animate
+
+
+            pointLightAngle: 45, // Degrees
+            pointLightSpeed: 360 / 4, // Deg/Second. 360/4: one cycle in 4 sec
+            animateLight: true,
+
+            cameraFov: 75,
+
+            clock: clock,
+            direction: new THREE.Vector3(),
+            maxHealth: 100,
+            currentHealth: 100,
+
+
+            maxPoints: 0,
+            currentPoints: 0
+
+
+        }
+
+        window.guns = {
+            handgun: {
+                bulletFireRate: 0.3,
+                bulletName: "gun.png",
+                gunAmmo: 96,
+                gunMag: 12,
+                gunSprite: undefined,
+                timeWhenFired: undefined,
+                is_active: false,
+                animationFrames: [],
+                reloadTime: 1.5,
+                bulletIcon: undefined,
+                is_reloading: false,
+                timeWhenReload: undefined,
+                gunMaxMag: 12,
+                damage: 1
+
+
+            }
+        }
+
+        window.activeGun = "handgun";
+
+        window.crosshair = undefined;
+
+
+    }
+
+    window.raycasterForShooting = new THREE.Raycaster();
+
+    window.bulletSpriteInfo = undefined;
+    window.pointsSpriteInfo = undefined;
+
+
+    // window.ctx = undefined;
+    // window.imageObj1 = undefined;
+
+
+
+
+    /* ### GUI controls ### */
+    function initGUI() {
+        window.gui = new dat.GUI(); // Define as global, use as gui
+
+        gui.add(model, 'bumpScale').min(-5).max(5).step(0.1).onChange(update);
+
+        gui.add(model, 'x').min(-200.0).max(200.0).step(10).onChange(update);
+        gui.add(model, 'y').min(-20).max(200.0).step(10).onChange(update);
+        gui.add(model, 'z').min(-200.0).max(200.0).step(10).onChange(update);
+        gui.add(model, 'angle').min(-180.0).max(180.0).step(5).onChange(update);
+        gui.add(model, 'armPhi').min(-180.0).max(180.0).step(5).onChange(update);
+        gui.add(model, 'armPsi').min(-180.0).max(180.0).step(5).onChange(update);
+
+        gui.add(model, 'showPlane').onChange(update);
+        gui.add(model, 'showPlaneGrid').onChange(update);
+        gui.add(model, 'showAxisHelper').onChange(update);
+        gui.add(model, 'animateLight').onChange(update);
+        //gui.add(model, 'velocity').min(30).max(200).onChange(update);
+        gui.add(model, 'angleVelocity').min(30).max(200).onChange(update);
+
+        gui.add(model, 'cameraFov').min(5).max(175).step(5).onChange(update);
+
+    }
+
+    function updateGUI(theGui) {
+        if (typeof (theGui) === "undefined") theGui = gui;
+
+        // Update the GUI display based on current parameters
+        // Source: http://stackoverflow.com/a/29069189
+        for (var i in gui.__controllers) {
+            theGui.__controllers[i].updateDisplay();
+        }
+        // Do recursion to update inside folders
+        for (var f in theGui.__folders) {
+            updateGUI(theGui.__folders[f]);
+        }
+    }
+    // window.updateGUI = updateGUI // Declare as global scope
+
+    /* ### Keyboard ### */
+    function initKeys(canvas) {
+        // Make sure the canvas can receive the key events
+        canvas.setAttribute('tabindex', '0');
+        canvas.focus();
+        // Workaround: give the focus back to the canvas when clicked
+        // keyboard events are not received when canvas is not focused
+        canvas.addEventListener('mousedown', onMouseDown, true);
+
+        canvas.addEventListener('mouseup', onMouseUp, true);
+        // Register the keyDown and keyUp events
+        canvas.addEventListener("keydown", onKeyDown, true);
+        canvas.addEventListener("keyup", onKeyUp, true);
+
+
+    }
+
+    window.pressedKeys = {
+        "ArrowUp": 0,
+        "ArrowDown": 0,
+        "ArrowLeft": 0,
+        "ArrowRight": 0,
+        "ShiftLeft": 1,
+        "KeyA": 0,
+        "KeyS": 0,
+        "KeyZ": 0,
+        "KeyX": 0,
+
+    };
+
+    function onMouseDown(event) {
+
+        event.preventDefault();
+        // console.log(event);
+        switch (event.button) {
+            //left click
+            case 0:
+
+
+
+                //if the gun is not firing and is not reloading, shoot
+                if (guns[activeGun].is_active == false && guns[activeGun].is_reloading == false) {
+                    guns[activeGun].is_active = true;
+                    //this is going to be used for animation, and for fire rate checkups
+                    guns[activeGun].timeWhenFired = model.clock.elapsedTime;
+
+                    guns[activeGun].gunMag -= 1;
+                    //reload gun when gunmag reaches 0
+                    if (guns[activeGun].gunMag == 0) {
+                        guns[activeGun].is_reloading = true;
+                        guns[activeGun].timeWhenReload = model.clock.elapsedTime
+
+                    }
+
+                    //here should be the raycaster
+
+                    //const mouse = {
+                    //    x: (event.clientX / canvas.width) * 2 - 1,
+                    //    y: -(event.clientY / canvas.weight) * 2 + 1,
+                    //}
+                    //raycasterForShooting.camera = camera;
+                    var v = new THREE.Vector3()
+                    v.copy(controls.getObject().position);
+                    var direction = new THREE.Vector3();
+                    controls.getDirection(direction)
+
+                    //shoot in the direction  camera is are aiming at
+                    raycasterForShooting.set(v, direction);
+                    //console.log('direction', direction);
+
+                    let enemiesHit = raycasterForShooting.intersectObjects(currentEnemiesInScene, true);
+                    //console.log(currentEnemiesInScene);
+                    if (enemiesHit.length > 0) {
+                        // If you are in here, the enemy is hit
+                        //                        console.log('Entramos a disparo');
+                        //  console.log(enemiesHit);
+                        //console.log(currentEnemies);
+
+                        //since the gltf is a bunch of meshes together, this is how i get the Group object, that represents
+                        //the gltf as a whole. 
+
+                        var container = getContainer(enemiesHit[0].object);
+
+                        if (container == null) return;
+
+                        var uuid = container.uuid;
+
+                        //Deal damage to the enemy with this uuid 
+                        currentEnemies[uuid].health -= guns[activeGun].damage;
+
+                        model.currentPoints += 10;
+                        model.maxPoints += 10;
+                        if (currentEnemies[uuid].health <= 0) {
+                            //console.log(enemiesHit);
+                            //currentEnemies[uuid].scene.parent.remove(currentEnemies[uuid].scene)
+                            currentEnemies[uuid].die();
+
+                            currentEnemies[uuid].deadAt = model.clock.elapsedTime;
+
+
+                            //console.log("before delete");
+                            //console.log(currentEnemiesInScene);
+
+                            //remove from the enemies inside scene
+                            var index = currentEnemiesInScene.indexOf(container);
+                            currentEnemiesInScene.splice(index, 1);
+                            //console.log('after delete');
+                            //console.log(currentEnemiesInScene);
+                        }
+                    }
+
+                }
+                break;
+
+        }
+    }
+
+    function onMouseUp(event) {
+
+        event.preventDefault();
+        // console.log(event);
+        switch (event.button) {
+
+            case 0:
+
+            //guns[activeGun].is_active = false;
+        }
+    }
+    // Callbacks for discrete key events
+    function onKeyDown(event) {
+        // Comment this to stop displaying key pressed on the console
+        // console.log(event)
+        event.preventDefault();
+
+        // Check key press using event.key
+        if (event.code == "KeyW" || event.code == "ArrowUp") {
+            pressedKeys["ArrowUp"] = 1;
+        }
+        else if (event.code == "KeyS" || event.code == "ArrowDown") {
+            pressedKeys["ArrowDown"] = -1
+        }
+        else if (event.code == "KeyA" || event.code == "ArrowLeft") {
+            pressedKeys["ArrowLeft"] = 1
+        }
+        else if (event.code == "KeyD" || event.code == "ArrowRight") {
+            pressedKeys["ArrowRight"] = -1
+        }
+        //walking
+        else if (event.code == "ShiftLeft") {
+            pressedKeys['ShiftLeft'] = 2;
+        }
+
+
+        //reloading
+
+        else if (event.code == 'KeyR') {
+            if (guns[activeGun].is_reloading == false) {
+                guns[activeGun].is_reloading = true;
+                guns[activeGun].timeWhenReload = model.clock.elapsedTime
+            }
+        }
+
+
+
+        //updateGUI() // Update dat.GUI display in case we changed some parameters
+        update()    // Update scenegraph and render
+    }
+
+    function onKeyUp(event) {
+        if (event.code == "KeyW" || event.code == "ArrowUp") {
+            pressedKeys["ArrowUp"] = 0;
+        }
+        else if (event.code == "KeyS" || event.code == "ArrowDown") {
+            pressedKeys["ArrowDown"] = 0
+        }
+        else if (event.code == "KeyA" || event.code == "ArrowLeft") {
+            pressedKeys["ArrowLeft"] = 0
+        }
+        else if (event.code == "KeyD" || event.code == "ArrowRight") {
+            pressedKeys["ArrowRight"] = 0
+        }
+        else if (event.code == "Key" || event.code == "KeyA") {
+            pressedKeys["KeyA"] = 0
+        }
+        else if (event.code == "Key" || event.code == "KeyZ") {
+            pressedKeys["KeyZ"] = 0
+        }
+        else if (event.code == "Key" || event.code == "KeyS") {
+            pressedKeys["KeyS"] = 0
+        }
+        else if (event.code == "Key" || event.code == "KeyX") {
+            pressedKeys["KeyX"] = 0
+        }
+        else if (event.code == "ShiftLeft") {
+            pressedKeys['ShiftLeft'] = 1;
+        }
+    }
+
+    /* ### Main functions: init, update, animate, render... ### */
+
+    // Any variable you want to access from the console need
+    // to be initialized as windows.namevariable = value
+    // A bit curbersome for init, but can be accessed 
+
+    // Initialize here any global variable you want to access from the console
+    window.scene = undefined
+    // From now on, you can access windows.scene as just scene in the code
+    // window.mesh = undefined
+
+    window.completeMap = {
+        plane: undefined
+
+        , planeLeft: undefined
+        , planeRight: undefined
+        , planeTop: undefined
+        , planeBottom: undefined
+        , planeTopRight: undefined
+        , planeTopLeft: undefined
+        , planeBottomRight: undefined
+        , planeBottomLeft: undefined
+        ,
+    }
+
+    //to map the collisions with their uuid
+
+    window.uuidMapping = {};
+
+
+    //for collision?
+    window.raycaster = undefined;
+    window.allGeometries = [];
+
+
+    window.pointLight = undefined
+    window.camera = undefined
+    // window.cameraOrtho = undefined;
+    // window.sceneOrtho = undefined;
+    window.wall = undefined
+    window.fpsCamera = undefined;
+
+    //for health HUD;
+
+    window.healthBars = {
+        100: undefined,
+        90: undefined,
+        80: undefined,
+        70: undefined,
+        60: undefined,
+        50: undefined,
+        40: undefined,
+        30: undefined,
+        20: undefined,
+        10: undefined,
+        0: undefined,
+    }
+    window.healthSprite = undefined
+    window.labelRenderer = undefined
+    window.gltf = undefined
+
+
+    //1 enemy per spawnRate
+    window.spawnRate = 2;
+    window.lastSpawn = 0;
+
+
+
+
+    // create enemy structures
+
+
+    //inspired by https://www.youtube.com/watch?v=pGO1Hm-JB90&ab_channel=Genka
+    class EnemyController {
+
+        constructor(scene, hit_rate = 1.0, health = 4, animationFrames) {
+            this.health = health;
+            this.hit_rate = hit_rate;
+            //this.loader = new GLTFLoader();
+            this.scene = scene;
+            //console.log(animationFrames);
+            //this.camera = new THREE.PerspectiveCamera(model.cameraFov, canvas.width / canvas.height, 1, 2000);
+            this.animationFrames = animationFrames;
+            this.animationMixer = new THREE.AnimationMixer(this.scene);
+
+            //for moving, and raycasting
+
+            this.raycaster = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, - 1, 0), 0, 10);
+
+            this.dead = false;
+            this.deadAt = 0;
+
+            this.dancing = true;
+            this.direction = new THREE.Vector3();
+
+            this.lastHit = 0;
+            this.moving = false;
+            this.hitting = false;
+            this.globalCoord = new THREE.Vector3()
+            this.rotation = new THREE.Vector3();
+
+
+
+            // this.spriteSheet = spriteSheet
+            //var textureLoader = new THREE.TextureLoader();
+            //textureLoader.crossOrigin = '';
+            //this.map = textureLoader.load('moretextures/' + spriteSheet);
+            //this changes per image, because enemy_0 has 7 tiles vertically and enemy_1 5
+            //this.map.magFilter = THREE.NearestFilter //to make sharper pixels
+
+            /*switch (spriteSheet) {
+
+                case "enemy_0_editted.png":
+                    this.verticalTiles = 6;
+                    this.horizontalTiles = 9;
+
+                    break;
+
+                case "enemy_1_editted.png":
+                    this.verticalTiles = 5;
+                    this.horizontalTiles = 6;
+                    break;
+
+                /*case "enemy_2.png":
+                    this.verticalTiles = 7;
+                    this.horizontalTiles = 10;
+                    break;
+
+            }*/
+            /*this.currentTile = 0;
+
+            this.map.repeat.set(1 / this.horizontalTiles, 1 / this.verticalTiles);
+            this.spriteMaterial = new THREE.SpriteMaterial({ map: this.map });
+
+
+            this.sprite = new THREE.Sprite(this.spriteMaterial);
+            //this.sprite.position.y = 200
+            //shooting
+            // this.raycaster = new THREE.Raycaster();
+            this.update(0);*/
+        }
+
+        dance(delta) {
+
+            this.dancing = true;
+            this.animationMixer.stopAllAction();
+            this.animationMixer.clipAction(this.animationFrames[0]).play();
+
+
+
+        }
+
+        run() {
+
+
+            this.animationMixer.stopAllAction();
+            this.animationMixer.clipAction(this.animationFrames[6]).play();
+        }
+
+        die() {
+            this.animationMixer.stopAllAction();
+            this.dead = true;
+            this.hitting = false;
+            this.moving = false;
+            var action = this.animationMixer.clipAction(this.animationFrames[1]);
+            action.clampWhenFinished = true;
+            action.setLoop(THREE.LoopOnce).play();
+
+            //when they die, chance of dropping an item.
+            var chanceOfDroppingItem = Math.floor(Math.random() * 10);
+
+            if (chanceOfDroppingItem % 4 == 0) {
+                model.currentHealth += 20;
+                if (model.currentHealth > 100) model.currentHealth = 100;
+                healthSprite.material = healthBars[model.currentHealth];
+            }
+
+            else if (chanceOfDroppingItem % 4 == 1) {
+                guns[activeGun].gunAmmo += 24;
+
+
+            }
+
+            model.currentPoints += 60;
+            model.maxPoints += 60;
+            // setTimeout(this.scene.parent.remove(this.scene), 3000)
+
+        }
+
+        /*
+        
+                playSpriteIndices = [];
+                runningTileArrayIndex = 0;
+                maxDisplayTime = 0;
+                elapsedTime = 0;
+        
+        
+                //recieves what indices are going to be looped in, and the time for loop to happen
+                loop(playSpriteIndices, totalDuration) {
+                    this.playSpriteIndices = playSpriteIndices;
+                    this.runningTileArrayIndex = 0;
+                    this.currentTile = playSpriteIndices[this.runningTileArrayIndex]
+                    this.maxDisplayTime = totalDuration / this.playSpriteIndices.length;
+                }
+                //the current tiles are going to be x oriented, so in a grid
+                /*______________
+                |0 | 1| 2| 3| 4|
+                |5 | 6| 7| 8| 9|
+                |
+                |
+        
+        
+                */
+
+        /*
+        update(time) {
+            //elapsedtime per each image
+            this.elapsedTime += time;
+
+            if (this.maxDisplayTime > 0 && this.elapsedTime >= this.maxDisplayTime) {
+                //reset
+                this.elapsedTime = 0;
+                this.runningTileArrayIndex = (this.runningTileArrayIndex + 1) % this.playSpriteIndices.length;
+                this.currentTile = this.playSpriteIndices[this.runningTileArrayIndex];
+                const offsetX = (this.currentTile % this.horizontalTiles) / this.horizontalTiles;
+                const offsetY = (this.verticalTiles - Math.floor(this.currentTile / this.horizontalTiles) - 1) / this.verticalTiles
+                this.map.offset.x = offsetX;
+                this.map.offset.y = offsetY;
+            }
+        }*/
+
+        move(delta) {
+            if (this.moving == false) {
+                this.moving = true;
+                this.hitting = false;
+                this.animationMixer.stopAllAction();
+                this.animationMixer.clipAction(this.animationFrames[6]).play();
+
+            }
+
+            //for the wall collision while moving, similar to camera movement
+
+            //set raycast to the floor
+
+            this.raycaster.ray.origin.copy(this.scene.position);
+            this.raycaster.ray.origin.y -= 10;
+
+
+            //intersections will give me in which part of the scene the enemy is
+            const intersections = this.raycaster.intersectObjects(allGeometries, false);
+
+            if (intersections.length > 0) {
+
+                //this.direction so it can move in the foward direction
+                this.direction = this.scene.getWorldDirection(this.direction);
+
+                var uuidForMap = intersections[0].object.uuid;
+
+                //console.log("Si: ", uuidMapping[uuidForMap]);
+                //console.log('Map: ', intersections[0].object);
+
+                //get the edges of the scene the enemy is in
+
+                var edgeX = uuidMapping[uuidForMap].edgeX;
+                var edgeZ = uuidMapping[uuidForMap].edgeZ;
+
+                //translation
+                this.scene.position.x = this.scene.position.x + this.direction.x * 110 * delta;
+                this.scene.position.z = this.scene.position.z + this.direction.z * 110 * delta;
+
+                //console.log('edgeX: ', edgeX, 'edgeY: ', edgeZ);
+
+                //console.log("POSITION: ", this.scene.position);
+
+                //if any of these conditions is true, it means they are walking towards a wall
+
+                if (this.scene.position.x <= edgeX.left.x && !(this.scene.position.z >= edgeX.left.lowerZ && this.scene.position.z <= edgeX.left.highZ)) {
+                    //console.log("AQUI");
+                    this.scene.position.x = edgeX.left.x;
+                }
+                else if (this.scene.position.x >= edgeX.right.x && !(this.scene.position.z >= edgeX.right.lowerZ && this.scene.position.z <= edgeX.right.highZ)) {
+                    //console.log("AQUI 2");
+                    this.scene.position.x = edgeX.right.x
+                }
+
+                if (this.scene.position.z <= edgeZ.up.z && !(this.scene.position.x >= edgeZ.up.lowerX && this.scene.position.x <= edgeZ.up.highX)) {
+                    //console.log("AQUI3");
+                    this.scene.position.z = edgeZ.up.z;
+                }
+                else if (this.scene.position.z >= edgeZ.down.z && !(this.scene.position.x >= edgeZ.down.lowerX && this.scene.position.x <= edgeZ.down.highX)) {
+                    //console.log("aqui4");
+                    this.scene.position.z = edgeZ.down.z;
+                }
+            }
+            else {
+                //console.log("no");
+                //console.log(this.raycaster);
+            }
+
+
+
+
+
+
+            //this.rotation.set(this.scene.rotation._x, this.scene.rotation._y, this.scene.rotation._z)
+            //this.raycaster.set(this.globalCoord, this.rotation);
+
+            //const intersections = this.raycaster.intersectObject(camera);
+
+
+
+            /*this.globalCoord = this.scene.getWorldPosition(this.globalCoord);
+
+            if (this.globalCoord.x <= edgeX.left.x && !(this.globalCoord.z >= edgeX.left.lowerZ && this.globalCoord.z <= edgeX.left.highZ)) {
+                this.globalCoord.x = edgeX.left.x;
+            }
+            else if (this.globalCoord.x >= edgeX.right.x && !(this.globalCoord.z >= edgeX.right.lowerZ && this.globalCoord.z <= edgeX.right.highZ)) {
+                this.globalCoord.x = edgeX.right.x
+            }
+
+            if (this.globalCoord.z <= edgeZ.up.z && !(this.globalCoord.x >= edgeZ.up.lowerX && this.globalCoord.x <= edgeZ.up.highX)) {
+                this.globalCoord.z = edgeZ.up.z;
+            }
+            else if (this.globalCoord.z >= edgeZ.down.z && !(this.globalCoord.x >= edgeZ.down.lowerX && this.globalCoord.x <= edgeZ.down.highX)) {
+                this.globalCoord.z = edgeZ.down.z;
+            }
+
+            this.scene.position.copy(this.scene.worldToLocal(this.globalCoord));
+
+*/
+
+
+
+        }
+        punch() {
+            //start the hitting animation
+            if (this.hitting == false) {
+                this.hitting = true;
+                this.moving = false;
+                this.animationMixer.stopAllAction();
+                this.animationMixer.clipAction(this.animationFrames[5]).play();
+            }
+            //hit based on time, they hit you once every second, or every this.hit_rate
+            if (model.clock.elapsedTime - this.lastHit >= this.hit_rate) {
+                this.lastHit = model.clock.elapsedTime;
+
+                //if they hit, you take damage, and change health
+                model.currentHealth -= 10;
+
+                if (model.currentHealth >= 0)
+                    healthSprite.material = healthBars[model.currentHealth];
+            }
+        }
+
+
+
+
+
+
+        update(delta) {
+
+            if (this.dead != true) {
+
+
+                //this.scene.rotation.y += 0.04;
+
+                //this.targetAcquired();
+
+
+                //this.move()
+                //make them look towards me
+                this.direction = playerHitbox[0].getWorldPosition(this.direction);
+                this.direction.y -= 170
+                this.scene.lookAt(this.direction);
+
+
+
+                //const distX = camera.position.x - this.scene.position.x;
+                //const distZ = camera.position.z - this.scene.position.z;
+
+                //const distanceBetween = Math.sqrt(distZ * distZ + distX * distX)
+                //console.log(distanceBetween);
+                //if they are close enough, punch me, if not move
+                this.globalCoord = this.scene.getWorldPosition(this.globalCoord);
+                if (this.globalCoord.distanceTo(camera.position) >= 120) {
+
+                    this.move(delta)
+                }
+                else {
+                    this.punch()
+                }
+                this.animationMixer.update(delta);
+            }
+            else {
+                this.animationMixer.update(delta);
+            }
+
+        }
+
+        targetAcquired() {
+            /*var matrix = new THREE.Matrix4();
+            matrix.extractRotation(this.scene.matrix);
+    
+            var direction = new THREE.Vector3(0, 0, 1);
+            direction = direction.applyMatrix4(matrix);
+            //direction = matrix.multiplyVector3(direction);
+    
+            var v = new THREE.Vector3();
+            v.copy(this.scene.position);
+            this.scene.getWorldPosition(v)*/
+
+
+
+
+
+
+            // this.scene.matrixWorld.decompose(position, quaternion, scale);
+
+            //this.scene.getWorldDirection(direction);
+            //this.scene.getWorldPosition(position);
+            //vector.applyQuaternion(quaternion);
+            //console.log(position, direction);
+            //this.raycaster.set(position, direction);
+
+            // const intersects = this.raycaster.intersectObjects(playerHitbox, true);
+            // if (intersects.length > 0)
+            //     console.log("EMBUSTE");
+
+
+
+        }
+
+        //to create multiple enemies
+
+        clone() {
+            var scene = this.scene.clone(true);
+            return new EnemyController(scene, this.hit_rate, this.health, this.animationFrames);
+        }
+
+
+
+
+
+
+
+
+    }
+
+    // enemies, if there would be more gltf, then they would be here
+    function initEnemies() {
+        var loader = new GLTFLoader();
+        loader.load('models/scene.gltf', function (gltf) {
+            window.enemies = {
+                //enemy_0: new EnemyController("enemy_0_editted.png", 2, 6),
+                //enemy_1: new EnemyController("enemy_1_editted.png", 1, 12)
+                //enemy_2: new EnemyController("enemy_1_editted.png", 3, 8)
+                enemy_0: new EnemyController(gltf.scene, 1, 6, gltf.animations)
+
+
+            }
+        })
+
+
+
+    }
+
+
+    //variable for the enemies inside the scene
+
+    window.currentEnemies = {};
+    window.currentEnemiesInScene = [];
+    window.maxEnemies = 16;
+
+
+
+    // Rest of the variables can be declared as local to the module
+    // but cannot be accessed from the console
+    var canvas
+    var renderer
+    var axesHelper
+    var planeGrid
+    var texture
+    var pointLightMesh
+    var controls
+
+    //Draw map
+
+    function createMap() {
+
+        //create the floor
+
+        var planegeom = new THREE.BoxGeometry(500, 500, 10); // XY plane
+        planegeom.applyMatrix4(
+            new THREE.Matrix4().makeRotationX(-Math.PI / 2))
+        // Rotate into XZ plane
+        var planemat = new THREE.MeshPhongMaterial({
+            side: THREE.DoubleSide,
+            specular: '#91672C', shininess: 10,
+        });
+        completeMap.plane = new THREE.Mesh(planegeom, planemat)
+
+
+        //completeMap.plane.material.linewidth = 6;
+
+
+        //add a light bar in each ceiling
+
+
+
+
+        pointLight = new THREE.PointLight(0x303030)
+        pointLight.position.set(0, 190, 0)
+        completeMap.plane.add(pointLight)
+
+
+        var pointLightGeo = new THREE.BoxGeometry(10, 10, 40)
+        var pointLightMat = new THREE.MeshBasicMaterial({ color: 0xfffff0, wireframe: false })
+        pointLightMesh = new THREE.Mesh(pointLightGeo, pointLightMat)
+        // Make it a child of pointLight so it is located in the same position
+        pointLight.add(pointLightMesh)
+
+
+        //The creation of the walls
+        let wall2 = undefined;
+
+        //If translate 125 and wall is 250, then half of the map taken. 
+        // If Wall x=230 then translatex=135 goes on the edge, if wall 210 translate 145 
+
+        let position = [1, -1];
+        let walltexture = new THREE.TextureLoader();
+        walltexture.crossOrigin = '';
+        walltexture = walltexture.load('moretextures/wall-brick.jpg');
+
+
+        for (let x = 0; x < position.length; x++) {
+            for (let z = 0; z < position.length; z++) {
+
+                //creation of each wall, 2 on the positive z, 2 on the negative z,
+                // 2 on the positive x and 2 on the negative x
+
+
+                var planegeom = new THREE.BoxGeometry(210, 200, 10);
+                planegeom.applyMatrix4(
+                    new THREE.Matrix4().makeTranslation(145 * position[x], 100, 250 * position[z])
+                )
+
+                var planemat = new THREE.MeshPhongMaterial({
+                    side: THREE.DoubleSide, map: walltexture,
+                    specular: '#cb4154', shininess: 10,
+                    bumpMap: walltexture,
+                    bumpScale: 5
+                });
+                wall2 = new THREE.Mesh(planegeom, planemat)
+
+                completeMap.plane.add(wall2)
+
+
+                var planegeom = new THREE.BoxGeometry(210, 200, 10);
+                planegeom.applyMatrix4(
+                    new THREE.Matrix4().makeRotationY(-Math.PI / 2)
+                )
+                planegeom.applyMatrix4(
+                    new THREE.Matrix4().makeTranslation(250 * position[x], 100, 145 * position[z])
+                )
+
+                var planemat = new THREE.MeshPhongMaterial({
+                    side: THREE.DoubleSide, map: walltexture,
+                    specular: '#cb4154', shininess: 10,
+                    bumpMap: walltexture,
+                    bumpScale: 5
+                });
+                wall2 = new THREE.Mesh(planegeom, planemat)
+
+                completeMap.plane.add(wall2)
+            }
+        }
+
+
+        //creation of ceiling
+        var planegeom = new THREE.BoxGeometry(500, 500, 10); // XY plane
+        planegeom.applyMatrix4(
+            new THREE.Matrix4().makeRotationX(-Math.PI / 2))
+
+        planegeom.applyMatrix4(
+            new THREE.Matrix4().makeTranslation(0, 200, 0))
+        let textureLoader = new THREE.TextureLoader()
+        textureLoader.crossOrigin = '';
+        texture = textureLoader.load('moretextures/wood-floor.jpg')
+        var planemat = new THREE.MeshPhongMaterial({
+            side: THREE.DoubleSide,
+            specular: '#91672C', shininess: 10,
+            bumpMap: texture, bumpScale: 5
+            , map: texture
+        });
+        var ceiling = new THREE.Mesh(planegeom, planemat)
+        completeMap.plane.add(ceiling);
+
+
+
+
+
+
+
+
+        /*
+           map: texture, side: THREE.DoubleSide,
+           specular: '#ffffff', shininess: 1
+         })*/
+        //wood floor material
+        let bumpTexture = textureLoader.load('moretextures/wood-floor.jpg')
+        completeMap.plane.material = new THREE.MeshPhongMaterial({
+            map: texture, side: THREE.DoubleSide,
+            specular: '#ffffff', shininess: 10,
+            bumpMap: bumpTexture, bumpScale: 5,
+
+        })
+        //allGeometries = completeMap.plane;
+        //clone 8 more times (9 times) to create the whole map
+        //then add doors to each corner so the map looks closed
+
+        var door = textureLoader.load('moretextures/door.jpg')
+        //var doorgeom = new THREE.PlaneGeometry(80, 200);
+        var doorMat = new THREE.MeshPhongMaterial({
+            side: THREE.DoubleSide,
+            specular: "#A27C5B", shininess: 10,
+            bumpMap: door, bumpScale: 5,
+            map: door
+
+        })
+        //for corners
+
+        //this is the creation of each door mentioned on the documentation. 
+        //and the uuidMapping used for wall collision.
+
+
+        for (var key in completeMap) {
+            completeMap[key] = completeMap.plane.clone(true);
+            var doorgeom = new THREE.BoxGeometry(80, 200, 10);
+            var doorgeom2 = doorgeom.clone(true);
+            //get the uuid and map  it with the the parameters needed for collision
+
+
+
+
+
+
+
+            switch (key) {
+                case 'planeTopRight':
+                    completeMap[key].applyMatrix4(
+                        new THREE.Matrix4().makeTranslation(500, 0, -500)
+                    )
+                    doorgeom.applyMatrix4(
+                        new THREE.Matrix4().makeTranslation(0, 100, -250)
+                    );
+                    completeMap[key].add(new THREE.Mesh(doorgeom, doorMat));
+                    doorgeom2.applyMatrix4(
+                        new THREE.Matrix4().makeRotationY(-Math.PI / 2)
+                    )
+                    doorgeom2.applyMatrix4(
+                        new THREE.Matrix4().makeTranslation(250, 100, 0)
+                    )
+                    completeMap[key].add(new THREE.Mesh(doorgeom2, doorMat));
+
+                    allGeometries.push(completeMap[key]);
+
+                    //get the uuid and map  it with the key
+
+                    var uuid = completeMap[key].uuid;
+
+                    var allInfoForCollision = {
+                        edgeX: {
+                            left: {
+
+                                //completeMap[key].translation -230
+                                x: completeMap[key].position.x - 230,
+                                //lower Z and High Z for the edges of hallways
+                                lowerZ: completeMap[key].position.z - 20,
+                                highZ: completeMap[key].position.z + 20,
+                            },
+                            right: {
+
+                                //completeMap[key].position.x +230
+                                x: completeMap[key].position.x + 230,
+                                //because there is a door, then model.x>lowerZ && model.x<=highZ will always be false
+                                lowerZ: 1,
+                                highZ: 0
+
+                            }
+                        },
+                        edgeZ: {
+                            up: {
+                                z: completeMap[key].position.z - 230,
+                                lowerX: 1,
+                                highX: 0,
+                            },
+                            down: {
+                                z: completeMap[key].position.z + 230,
+                                lowerX: completeMap[key].position.x - 20,
+                                highX: completeMap[key].position.x + 20,
+                            }
+                        }
+                    }
+
+                    uuidMapping[uuid] = allInfoForCollision;
+
+
+
+
+
+                    break;
+                case 'planeTop':
+                    completeMap[key].applyMatrix4(
+                        new THREE.Matrix4().makeTranslation(0, 0, -500)
+                    )
+                    // doorgeom2.applyMatrix4(
+                    //   new THREE.Matrix4().makeRotationY(-Math.PI / 2)
+                    // )
+                    doorgeom2.applyMatrix4(
+                        new THREE.Matrix4().makeTranslation(0, 100, -250)
+                    )
+                    completeMap[key].add(new THREE.Mesh(doorgeom2, doorMat));
+                    allGeometries.push(completeMap[key]);
+
+                    var uuid = completeMap[key].uuid;
+
+                    var allInfoForCollision = {
+                        edgeX: {
+                            left: {
+
+                                //completeMap[key].translation -230
+                                x: completeMap[key].position.x - 230,
+                                //lower Z and High Z for the edges of hallways
+                                lowerZ: completeMap[key].position.z - 20,
+                                highZ: completeMap[key].position.z + 20,
+                            },
+                            right: {
+
+                                //completeMap[key].position.x +230
+                                x: completeMap[key].position.x + 230,
+
+                                lowerZ: completeMap[key].position.z - 20,
+                                highZ: completeMap[key].position.z + 20,
+
+
+                            }
+                        },
+                        edgeZ: {
+                            up: {
+                                z: completeMap[key].position.z - 230,
+                                lowerX: 1,
+                                highX: 0,
+                            },
+                            down: {
+                                z: completeMap[key].position.z + 230,
+                                lowerX: completeMap[key].position.x - 20,
+                                highX: completeMap[key].position.x + 20,
+                            }
+                        }
+                    }
+
+                    uuidMapping[uuid] = allInfoForCollision;
+
+
+                    //add specific mapping
+
+                    break;
+                case 'planeTopLeft':
+                    completeMap[key].applyMatrix4(
+                        new THREE.Matrix4().makeTranslation(-500, 0, -500)
+                    )
+                    doorgeom.applyMatrix4(
+                        new THREE.Matrix4().makeTranslation(0, 100, -250)
+                    );
+                    completeMap[key].add(new THREE.Mesh(doorgeom, doorMat));
+                    doorgeom2.applyMatrix4(
+                        new THREE.Matrix4().makeRotationY(-Math.PI / 2)
+                    )
+                    doorgeom2.applyMatrix4(
+                        new THREE.Matrix4().makeTranslation(-250, 100, 0)
+                    )
+                    completeMap[key].add(new THREE.Mesh(doorgeom2, doorMat));
+                    allGeometries.push(completeMap[key]);
+
+
+
+                    var uuid = completeMap[key].uuid;
+
+                    var allInfoForCollision = {
+                        edgeX: {
+                            left: {
+
+                                //completeMap[key].translation -230
+                                x: completeMap[key].position.x - 230,
+                                //lower Z and High Z for the edges of hallways
+                                lowerZ: 1,
+                                highZ: 0,
+                            },
+                            right: {
+
+                                //completeMap[key].position.x +230
+                                x: completeMap[key].position.x + 230,
+
+                                lowerZ: completeMap[key].position.z - 20,
+                                highZ: completeMap[key].position.z + 20,
+
+
+                            }
+                        },
+                        edgeZ: {
+                            up: {
+                                z: completeMap[key].position.z - 230,
+                                lowerX: 1,
+                                highX: 0,
+                            },
+                            down: {
+                                z: completeMap[key].position.z + 230,
+                                lowerX: completeMap[key].position.x - 20,
+                                highX: completeMap[key].position.x + 20,
+                            }
+                        }
+                    }
+
+                    uuidMapping[uuid] = allInfoForCollision;
+                    break;
+                case "planeRight":
+                    completeMap[key].applyMatrix4(
+                        new THREE.Matrix4().makeTranslation(500, 0, 0)
+                    )
+                    doorgeom.applyMatrix4(
+                        new THREE.Matrix4().makeRotationY(-Math.PI / 2)
+                    )
+                    doorgeom.applyMatrix4(
+                        new THREE.Matrix4().makeTranslation(250, 100, 0)
+                    )
+
+                    completeMap[key].add(new THREE.Mesh(doorgeom, doorMat));
+                    allGeometries.push(completeMap[key]);
+
+                    //Mapping and giving the wall collisions, with uuid;
+
+                    var uuid = completeMap[key].uuid;
+
+                    var allInfoForCollision = {
+                        edgeX: {
+                            left: {
+
+                                //completeMap[key].translation -230
+                                x: completeMap[key].position.x - 230,
+                                //lower Z and High Z for the edges of hallways
+                                lowerZ: completeMap[key].position.z - 20,
+                                highZ: completeMap[key].position.z + 20,
+                            },
+                            right: {
+
+                                //completeMap[key].position.x +230
+                                x: completeMap[key].position.x + 230,
+                                //because there is a door, then model.x>lowerZ && model.x<=highZ will always be false
+                                lowerZ: 1,
+                                highZ: 0
+
+                            }
+                        },
+                        edgeZ: {
+                            up: {
+                                z: completeMap[key].position.z - 230,
+                                lowerX: completeMap[key].position.x - 20,
+                                highX: completeMap[key].position.x + 20,
+                            },
+                            down: {
+                                z: completeMap[key].position.z + 230,
+                                lowerX: completeMap[key].position.x - 20,
+                                highX: completeMap[key].position.x + 20,
+                            }
+                        }
+                    }
+
+                    uuidMapping[uuid] = allInfoForCollision;
+
+
+                    break;
+                case "plane":
+                    completeMap[key].applyMatrix4(
+                        new THREE.Matrix4().makeTranslation(0, 0, 0)
+                    )
+                    allGeometries.push(completeMap[key]);
+
+
+                    var uuid = completeMap[key].uuid;
+
+                    var allInfoForCollision = {
+                        edgeX: {
+                            left: {
+
+                                //completeMap[key].translation -230
+                                x: completeMap[key].position.x - 230,
+                                //lower Z and High Z for the edges of hallways
+                                lowerZ: completeMap[key].position.z - 20,
+                                highZ: completeMap[key].position.z + 20,
+                            },
+                            right: {
+
+                                //completeMap[key].position.x +230
+                                x: completeMap[key].position.x + 230,
+
+                                lowerZ: completeMap[key].position.z - 20,
+                                highZ: completeMap[key].position.z + 20,
+
+
+                            }
+                        },
+                        edgeZ: {
+                            up: {
+                                z: completeMap[key].position.z - 230,
+                                lowerX: completeMap[key].position.x - 20,
+                                highX: completeMap[key].position.x + 20,
+                            },
+                            down: {
+                                z: completeMap[key].position.z + 230,
+                                lowerX: completeMap[key].position.x - 20,
+                                highX: completeMap[key].position.x + 20,
+                            }
+                        }
+                    }
+
+                    uuidMapping[uuid] = allInfoForCollision;
+                    break;
+                case "planeLeft":
+                    completeMap[key].applyMatrix4(
+                        new THREE.Matrix4().makeTranslation(-500, 0, 0)
+                    )
+
+                    doorgeom.applyMatrix4(
+                        new THREE.Matrix4().makeRotationY(-Math.PI / 2)
+                    )
+                    doorgeom.applyMatrix4(
+                        new THREE.Matrix4().makeTranslation(-250, 100, 0)
+                    )
+                    completeMap[key].add(new THREE.Mesh(doorgeom, doorMat));
+
+                    allGeometries.push(completeMap[key]);
+
+                    var uuid = completeMap[key].uuid;
+
+                    var allInfoForCollision = {
+                        edgeX: {
+                            left: {
+
+                                //completeMap[key].translation -230
+                                x: completeMap[key].position.x - 230,
+                                //lower Z and High Z for the edges of hallways
+                                lowerZ: 1,
+                                highZ: 0,
+                            },
+                            right: {
+
+                                //completeMap[key].position.x +230
+                                x: completeMap[key].position.x + 230,
+
+                                lowerZ: completeMap[key].position.z - 20,
+                                highZ: completeMap[key].position.z + 20,
+
+
+                            }
+                        },
+                        edgeZ: {
+                            up: {
+                                z: completeMap[key].position.z - 230,
+                                lowerX: completeMap[key].position.x - 20,
+                                highX: completeMap[key].position.x + 20,
+                            },
+                            down: {
+                                z: completeMap[key].position.z + 230,
+                                lowerX: completeMap[key].position.x - 20,
+                                highX: completeMap[key].position.x + 20,
+                            }
+                        }
+                    }
+
+                    uuidMapping[uuid] = allInfoForCollision;
+                    break;
+                case "planeBottomRight":
+                    completeMap[key].applyMatrix4(
+                        new THREE.Matrix4().makeTranslation(500, 0, 500)
+                    )
+                    doorgeom2.applyMatrix4(
+                        new THREE.Matrix4().makeRotationY(-Math.PI / 2)
+                    )
+                    doorgeom.applyMatrix4(
+                        new THREE.Matrix4().makeTranslation(0, 100, 250)
+                    );
+
+                    completeMap[key].add(new THREE.Mesh(doorgeom, doorMat));
+
+                    doorgeom2.applyMatrix4(
+                        new THREE.Matrix4().makeTranslation(250, 100, 0)
+                    )
+                    completeMap[key].add(new THREE.Mesh(doorgeom2, doorMat));
+
+                    allGeometries.push(completeMap[key]);
+
+                    var uuid = completeMap[key].uuid;
+
+                    var allInfoForCollision = {
+                        edgeX: {
+                            left: {
+
+                                //completeMap[key].translation -230
+                                x: completeMap[key].position.x - 230,
+                                //lower Z and High Z for the edges of hallways
+                                lowerZ: completeMap[key].position.z - 20,
+                                highZ: completeMap[key].position.z + 20,
+                            },
+                            right: {
+
+                                //completeMap[key].position.x +230
+                                x: completeMap[key].position.x + 230,
+
+                                lowerZ: 1,
+                                highZ: 0,
+
+
+                            }
+                        },
+                        edgeZ: {
+                            up: {
+                                z: completeMap[key].position.z - 230,
+                                lowerX: completeMap[key].position.x - 20,
+                                highX: completeMap[key].position.x + 20,
+                            },
+                            down: {
+                                z: completeMap[key].position.z + 230,
+                                lowerX: 1,
+                                highX: 0,
+                            }
+                        }
+                    }
+
+                    uuidMapping[uuid] = allInfoForCollision;
+                    break;
+                case "planeBottom":
+                    completeMap[key].applyMatrix4(
+                        new THREE.Matrix4().makeTranslation(0, 0, 500)
+                    )
+
+                    doorgeom.applyMatrix4(
+                        new THREE.Matrix4().makeTranslation(0, 100, 250)
+                    );
+
+                    completeMap[key].add(new THREE.Mesh(doorgeom, doorMat));
+
+                    var uuid = completeMap[key].uuid;
+
+                    var allInfoForCollision = {
+                        edgeX: {
+                            left: {
+
+                                //completeMap[key].translation -230
+                                x: completeMap[key].position.x - 230,
+                                //lower Z and High Z for the edges of hallways
+                                lowerZ: completeMap[key].position.z - 20,
+                                highZ: completeMap[key].position.z + 20,
+                            },
+                            right: {
+
+                                //completeMap[key].position.x +230
+                                x: completeMap[key].position.x + 230,
+
+                                lowerZ: completeMap[key].position.z - 20,
+                                highZ: completeMap[key].position.z + 20,
+
+
+                            }
+                        },
+                        edgeZ: {
+                            up: {
+                                z: completeMap[key].position.z - 230,
+                                lowerX: completeMap[key].position.x - 20,
+                                highX: completeMap[key].position.x + 20,
+                            },
+                            down: {
+                                z: completeMap[key].position.z + 230,
+                                lowerX: 1,
+                                highX: 0,
+                            }
+                        }
+                    }
+
+                    uuidMapping[uuid] = allInfoForCollision;
+
+
+
+                    allGeometries.push(completeMap[key]);
+                    break;
+                case "planeBottomLeft":
+                    completeMap[key].applyMatrix4(
+                        new THREE.Matrix4().makeTranslation(-500, 0, 500)
+                    )
+
+
+                    doorgeom.applyMatrix4(
+                        new THREE.Matrix4().makeRotationY(-Math.PI / 2)
+                    )
+                    doorgeom.applyMatrix4(
+                        new THREE.Matrix4().makeTranslation(-250, 100, 0)
+                    )
+                    completeMap[key].add(new THREE.Mesh(doorgeom, doorMat));
+                    doorgeom2.applyMatrix4(
+                        new THREE.Matrix4().makeTranslation(0, 100, 250)
+                    );
+                    completeMap[key].add(new THREE.Mesh(doorgeom2, doorMat));
+
+
+                    var uuid = completeMap[key].uuid;
+
+                    var allInfoForCollision = {
+                        edgeX: {
+                            left: {
+
+                                //completeMap[key].translation -230
+                                x: completeMap[key].position.x - 230,
+                                //lower Z and High Z for the edges of hallways
+                                lowerZ: 1,
+                                highZ: 0
+                            },
+                            right: {
+
+                                //completeMap[key].position.x +230
+                                x: completeMap[key].position.x + 230,
+
+                                lowerZ: completeMap[key].position.z - 20,
+                                highZ: completeMap[key].position.z + 20,
+
+
+                            }
+                        },
+                        edgeZ: {
+                            up: {
+                                z: completeMap[key].position.z - 230,
+                                lowerX: completeMap[key].position.x - 20,
+                                highX: completeMap[key].position.x + 20,
+                            },
+                            down: {
+                                z: completeMap[key].position.z + 230,
+                                lowerX: 1,
+                                highX: 0,
+                            }
+                        }
+                    }
+
+                    uuidMapping[uuid] = allInfoForCollision;
+
+
+                    allGeometries.push(completeMap[key]);
+
+                    break;
+
+
+
+                //get the uuid and map  it with the key
+
+
+
+
+                default:
+                    break;
+            }
+
+
+
+            scene.add(completeMap[key]);
+        }
+
+
+    }
+
+
+    function createHUD() {
+
+        //the healthbars, and putting them on the array to be used later
+
+        let textureLoader = new THREE.TextureLoader()
+        textureLoader.crossOrigin = '';
+        for (var i = 100; i >= 0; i -= 10) {
+
+            var healthMap = textureLoader.load('moretextures/health-' + i + '.png');
+            healthMap = new THREE.SpriteMaterial({ map: healthMap });
+            healthBars[i] = healthMap;
+
+        }
+        const width = canvas.width / 2;
+        const height = canvas.height / 2;
+
+
+        healthSprite = new THREE.Sprite(healthBars[100]);
+        //camera.add(healthSprite);
+        //healthSprite.scale.set(1, 1000);
+        //healthSprite.position.set(3, 0, -5);
+        //healthBars[100].map.image.width, healthBars[100].map.image.height)
+        //healthSprite.position.set(0, 0, -0);
+        // sceneOrtho.add(completeMap.plane.clone(true));
+        //scene.add(healthSprite);
+        //sceneOrtho.add(healthSprite);
+
+
+        //healthSprite.scale.set(320, 160)//healthBars[100].map.image.width, healthBars[100].map.image.height)
+        //healthSprite.position.set(0, 0, -100);
+
+
+        var gunMaterial = textureLoader.load('moretextures/gun.png');
+
+        //loads the 3 pictures needed for the handgun firing animation
+
+
+        for (var i = 1; i <= 3; i += 1) {
+
+            var dictionFrame = textureLoader.load('moretextures/handgunAnimate-' + i + '.png');
+            dictionFrame = new THREE.SpriteMaterial({ map: dictionFrame })
+            guns.handgun.animationFrames.push(dictionFrame);
+        }
+        //guns.handgun.animation
+        var dictionFrame = textureLoader.load('moretextures/handgunFire.png');
+        dictionFrame = new THREE.SpriteMaterial({ map: dictionFrame })
+        guns.handgun.animationFrames.push(new THREE.Sprite(dictionFrame));
+        guns.handgun.gunSprite = new THREE.Sprite(guns.handgun.animationFrames[0]);
+        var dictionFrame = textureLoader.load('moretextures/bulletIcon.png');
+        dictionFrame = new THREE.SpriteMaterial({ map: dictionFrame });
+
+        //bullet icon on the lower right
+        guns.handgun.bulletIcon = new THREE.Sprite(dictionFrame);
+
+
+        //adds crosshair
+
+        crosshair = textureLoader.load('moretextures/crosshair.png');
+        crosshair = new THREE.Sprite(new THREE.SpriteMaterial({ map: crosshair }));
+
+
+
+
+    }
+
+    //inspired by https://stackoverflow.com/questions/23514274/three-js-2d-text-sprite-labels
+    //this creates text and loads it as a sprite texture to display . 
+
+    //this function is called on animate, to change each time the bullets counters change
+    function addTextForBullets() {
+
+        //first create other canvas
+
+        let canvasText = document.createElement('canvas');
+        let context = canvasText.getContext('2d');
+        context.font = "Bold 18px Arial";
+        let fontsize = 18
+
+        let metrics = context.measureText(guns[activeGun].gunMag + " / " + guns[activeGun].gunAmmo);
+        var textWidth = metrics.width;
+        context.fillStyle = "white";
+        context.strokeStyle = "white";
+        context.lineWidth = 4;
+
+        context.fillText(guns[activeGun].gunMag + " / " + guns[activeGun].gunAmmo, 4, 22);
+
+        var texture = new THREE.Texture(canvasText);
+        texture.needsUpdate = true;
+        var spriteMaterial = new THREE.SpriteMaterial({ map: texture });
+        var sprite = new THREE.Sprite(spriteMaterial);
+        sprite.scale.set(0.5 * fontsize, 0.25 * fontsize, 0.75 * fontsize);
+        return sprite;
+
+    }
+
+    function addTextForPoints() {
+
+        //first create other canvas
+
+        let canvasText = document.createElement('canvas');
+        let context = canvasText.getContext('2d');
+        context.font = "Bold 18px Arial";
+        let fontsize = 18
+
+        let metrics = context.measureText("Points: " + model.currentPoints);
+        var textWidth = metrics.width;
+        context.fillStyle = "cyan";
+        context.strokeStyle = "cyan";
+        context.lineWidth = 4;
+
+        context.fillText("Points: " + model.currentPoints, 4, 22);
+
+        var texture = new THREE.Texture(canvasText);
+        texture.needsUpdate = true;
+        var spriteMaterial = new THREE.SpriteMaterial({ map: texture });
+        var sprite = new THREE.Sprite(spriteMaterial);
+        sprite.scale.set(0.5 * fontsize, 0.25 * fontsize, 0.75 * fontsize);
+        return sprite;
+
+    }
+
+    function initScene() {
+
+        // ##### 1. Create renderer and bind it to the canvas #####
+
+        canvas = document.getElementById("canvasID")
+        renderer = new THREE.WebGLRenderer({
+            canvas: canvas,
+            preserveDrawingBuffer: true
+        });
+
+
+        //document.body.appendChild(renderer.domElement)
+        renderer.setClearColor(0xe0f0ff)
+        //renderer.setClearColor(0xffffff)
+
+
+        // ##### 2. Create a scene and add objects to it #####
+
+        scene = new THREE.Scene()
+        //  sceneOrtho = new THREE.Scene()
+
+        // Auxiliary elements
+
+
+        axesHelper = new THREE.AxesHelper(100);
+        axesHelper.material.linewidth = 5
+        scene.add(axesHelper);
+
+
+
+
+        //
+
+        createMap();
+
+        createHUD();
+
+
+
+
+
+
+
+
+        // ##### 4. Create camera #####
+
+        camera = new THREE.PerspectiveCamera(model.cameraFov, canvas.width / canvas.height, 1, 2000);
+        scene.add(camera);
+        camera.position.set(0, 100, 0)
+        let width = canvas.width / 4;
+        let height = canvas.height / 4;
+
+        //let cameraDiv = document.createElement('div');
+        //cameraDiv.className = "label";
+        //cameraDiv.textContent = "6";
+
+        //heal
+
+
+        //cameraLabel.position.set(100, 0, -100)
+        // cameraOrtho = new THREE.PerspectiveCamera(model.cameraFov, canvas.width / canvas.height, 1, 2000);
+        //sceneOrtho.add(cameraOrtho);
+        //cameraOrtho.position.set()
+        //scene.add(camera);
+
+        //
+        controls = new PointerLockControls(camera, renderer.domElement);
+
+        //TODO 
+        controls.pointerSpeed = 0.50
+        // controls.speedFactor
+        canvas.addEventListener('click', function () {
+            canvas.focus();
+            controls.lock();
+        })
+
+
+
+        raycaster = new THREE.Raycaster(new THREE.Vector3(), new THREE.Vector3(0, - 1, 0), 0, 10)
+
+
+
+        //addint every sprite on camera, so it will show.
+
+        camera.add(guns.handgun.gunSprite);
+
+        guns.handgun.gunSprite.position.set(-0.55, -5, -10)
+        guns.handgun.gunSprite.scale.set(5, 6)
+
+
+
+        camera.add(crosshair);
+        crosshair.position.set(0, 0, -10)
+
+        bulletSpriteInfo = addTextForBullets();
+        camera.add(bulletSpriteInfo);
+        bulletSpriteInfo.position.set(16, -8.5, -10);
+
+        pointsSpriteInfo = addTextForPoints();
+        camera.add(pointsSpriteInfo);
+        pointsSpriteInfo.position.set(16, -2, -10);
+        //bulletSpriteInfo.add(guns[activeGun].bulletIcon)
+
+        //adding thebullet icon
+        camera.add(guns[activeGun].bulletIcon);
+        guns[activeGun].bulletIcon.scale.set(0.5, 1)
+        guns[activeGun].bulletIcon.position.set(8.5, -4, -6)
+
+
+        //create a plane to be the target of the robots
+
+        const geometry = new THREE.PlaneGeometry(30, 100);
+        const material = new THREE.MeshBasicMaterial({ color: 0xffff00, side: THREE.DoubleSide });
+        const plane = new THREE.Mesh(geometry, material);
+        camera.add(plane);
+        plane.position.set(0, 100, 10)
+
+        window.playerHitbox = [plane];
+        camera.add(healthSprite);
+
+        healthSprite.position.set(-5.2, 3.2, -5);
+        healthSprite.scale.set(5.5, 1);
+    }
+
+
+
+    function tick() {
+        // Keep calling tick indefinitely
+        requestAnimationFrame(tick);
+
+        animate()
+        update() // update and render
+    }
+
+    function animate() {
+        //update time
+        var absolute = model.clock.elapsedTime; // absolute = "elapsed" from start
+        var delta = model.clock.getDelta(); // delta from last call to animate (elapsed in the asteroid assg1)
+
+
+
+
+        if (controls.isLocked === true) {
+            //console.log(controls.getObject().position);
+
+            //casts a ray on the floor and checks all geometries, or all planes, to see in which plane
+            //im in, and use it for wall collision
+            raycaster.ray.origin.copy(controls.getObject().position);
+            raycaster.ray.origin.y -= 100;
+
+            const intersections = raycaster.intersectObjects(allGeometries, false);
+
+            //console.log(intersections);
+
+            //const onObject = intersections.length > 0;
+
+
+
+
+
+            model.velocity.x -= model.velocity.x * 10.0 * delta;
+            model.velocity.z -= model.velocity.z * 10.0 * delta;
+
+            // model.velocity.y -= 9.8 * 100.0 * delta; // 100.0 = mass
+
+            model.direction.z = pressedKeys["ArrowUp"] + pressedKeys["ArrowDown"];
+            model.direction.x = pressedKeys["ArrowLeft"] + pressedKeys["ArrowRight"];
+            model.direction.normalize(); // this ensures consistent movements in all directions
+
+            var prevZ = model.velocity.z;
+
+            if (pressedKeys["ArrowUp"] + pressedKeys["ArrowDown"]) {
+
+                //walkking is ShiftLeft
+                model.velocity.z -= model.direction.z * (3000.0 / pressedKeys["ShiftLeft"]) * delta;
+
+            }
+            var prevX = model.velocity.x;
+            if (pressedKeys["ArrowLeft"] + pressedKeys["ArrowRight"]) model.velocity.x -= model.direction.x * (3000.0 / pressedKeys["ShiftLeft"]) * delta;
+
+
+
+
+            controls.moveRight(model.velocity.x * delta);
+            controls.moveForward(-model.velocity.z * delta);
+
+            //check for collision depending on what part of the map the are
+
+            var uuidForMap = intersections[0].object.uuid;
+
+
+            var edgeX = uuidMapping[uuidForMap].edgeX;
+            var edgeZ = uuidMapping[uuidForMap].edgeZ;
+
+            if (camera.position.x <= edgeX.left.x && !(camera.position.z >= edgeX.left.lowerZ && camera.position.z <= edgeX.left.highZ)) {
+                camera.position.x = edgeX.left.x;
+            }
+            else if (camera.position.x >= edgeX.right.x && !(camera.position.z >= edgeX.right.lowerZ && camera.position.z <= edgeX.right.highZ)) {
+                camera.position.x = edgeX.right.x
+            }
+
+            if (camera.position.z <= edgeZ.up.z && !(camera.position.x >= edgeZ.up.lowerX && camera.position.x <= edgeZ.up.highX)) {
+                camera.position.z = edgeZ.up.z;
+            }
+            else if (camera.position.z >= edgeZ.down.z && !(camera.position.x >= edgeZ.down.lowerX && camera.position.x <= edgeZ.down.highX)) {
+                camera.position.z = edgeZ.down.z;
+            }
+
+
+
+            //renderer.clear();
+            const width = canvas.width / 2;
+            const height = canvas.height / 2;
+            // renderer.clearDepth();
+            //renderer.render(sceneOrtho, cameraOrtho);
+
+            // renderer.setSize(canvas.width, canvas.height);
+            //renderer.render(scene, camera);
+            /*renderer.setScissorTest(true);*/
+
+
+
+
+
+            //firing
+            if (guns[activeGun].is_active) {
+
+                if (absolute - guns[activeGun].timeWhenFired <= guns[activeGun].bulletFireRate / 3) {
+                    guns[activeGun].gunSprite.material = guns[activeGun].animationFrames[1];
+                    camera.add(guns[activeGun].animationFrames[3]);
+                    guns[activeGun].animationFrames[3].position.set(-0.20, -2.5, -12);
+                    guns[activeGun].animationFrames[3].scale.set(4.5, 4.5)
+                }
+                else if (absolute - guns[activeGun].timeWhenFired <= (2 * guns[activeGun].bulletFireRate) / 3) {
+                    guns[activeGun].gunSprite.material = guns[activeGun].animationFrames[2];
+
+                }
+                else if (absolute - guns[activeGun].timeWhenFired <= (3 * guns[activeGun].bulletFireRate) / 3) {
+                    guns[activeGun].gunSprite.material = guns[activeGun].animationFrames[0];
+                    guns[activeGun].is_active = false;
+                    camera.remove(guns[activeGun].animationFrames[3]);
+                }
+
+                //else {
+                //  guns[activeGun].timeWhenFired = model.clock.elapsedTime;
+                //}
+            }
+
+            //update bullet info
+
+            camera.remove(bulletSpriteInfo);
+            bulletSpriteInfo = addTextForBullets();
+            camera.add(bulletSpriteInfo);
+            bulletSpriteInfo.position.set(16, -8.5, -10)
+
+            //updatePoints
+            camera.remove(pointsSpriteInfo);
+            pointsSpriteInfo = addTextForPoints();
+            camera.add(pointsSpriteInfo);
+            pointsSpriteInfo.position.set(16, -2, -10);
+
+
+            // reload
+            if (guns[activeGun].is_reloading == true && guns[activeGun].is_active == false) {
+
+                reload();
+            }
+
+            //update each enemy, and if they are dead, remove them after 3 seconds
+            for (var key in currentEnemies) {
+                currentEnemies[key].update(delta);
+                if (currentEnemies[key].dead && ((absolute - currentEnemies[key].deadAt) > 3)) {
+                    currentEnemies[key].scene.parent.remove(currentEnemies[key].scene);
+                    delete currentEnemies[key];
+                }
+            }
+
+            //currentEnemies.map(function (e) {
+            //    e.update(delta)
+            //})
+
+            //death text
+
+            if (model.currentHealth <= 0) {
+                controls.unlock();
+
+                let canvasText = document.createElement('canvas');
+                let context = canvasText.getContext('2d');
+                context.font = "Bold 40px Arial";
+                let fontsize = 40
+
+                let metrics = context.measureText("YOU LOST");
+                var textWidth = metrics.width;
+                context.fillStyle = "white";
+                context.strokeStyle = "white";
+                context.lineWidth = 8;
+
+                context.fillText("YOU LOST", 30, 80, 5000);
+
+                var texture = new THREE.Texture(canvasText);
+                texture.needsUpdate = true;
+                var spriteMaterial = new THREE.SpriteMaterial({ map: texture });
+                var sprite = new THREE.Sprite(spriteMaterial);
+                sprite.scale.set(0.5 * fontsize, 0.25 * fontsize, 0.75 * fontsize);
+                camera.add(sprite);
+                sprite.position.set(0, 0, -10);
+
+            }
+
+            //Only specific pixels will be affected in this renderer
+
+
+            //camera.lookAt(new THREE.Vector3(model.x, model.y, model.z))
+            //controls.update(delta);
+        }
+
+
+    }
+    //called in animate
+    function reload() {
+        //created equation with x being elapsed - timeWhenReload
+
+        var x = model.clock.elapsedTime - guns[activeGun].timeWhenReload;
+        var reloadTime = guns[activeGun].reloadTime / 2
+        var newPosition;
+        if (x <= reloadTime) {
+            //-5 is the original position, if x is -0.1 then the new position is -6, which is great
+            newPosition = -5 - (x * 10);
+            guns[activeGun].gunSprite.position.y = newPosition
+        }
+        else if (x > reloadTime && x <= guns[activeGun].reloadTime) {
+            newPosition = -10 + ((x - 0.5) * 5);
+            guns[activeGun].gunSprite.position.y = newPosition
+        }
+        else {
+            guns[activeGun].gunSprite.position.y = -5
+            guns[activeGun].is_reloading = false;
+            guns[activeGun].gunAmmo -= guns[activeGun].gunMaxMag - guns[activeGun].gunMag
+
+            guns[activeGun].gunMag += (guns[activeGun].gunMaxMag - guns[activeGun].gunMag)
+
+
+        }
+
+
+    }
+
+    /* Update scene and redraw after changing parameters */
+    function update() {
+
+
+        //camera.fov = model.cameraFov
+        //camera.updateProjectionMatrix()
+
+        //if the user wants to move the green thing
+
+
+        // Rerender automatically each time the scenegraph has been updated
+        //ctx.drawImage(imageObj1, -12, 0 - 20, 25, 30);
+        render()
+    }
+
+    function render() {
+        //renderer.render(scene, camera);
+        renderer.setViewport(
+            0, 0, canvas.width, canvas.height
+        )
+        renderer.render(scene, camera);
+
+        //renderer.setScissorTest(false);
+
+
+        //renderer.setScissorTest(true);
+        //renderer.setScissor(
+        //    10, 700, 550, 80
+
+
+        //)
+
+        //renderer.setViewport(
+        //    10, 700, 550, 80
+
+        //)
+        //renderer.render(sceneOrtho, cameraOrtho);
+
+        //renderer.setScissorTest(false);
+
+
+        //inside renderer will be spawning the enemies, since it renders a new thing.
+
+        if (model.clock.elapsedTime - lastSpawn >= spawnRate && maxEnemies > currentEnemiesInScene.length) {
+
+            lastSpawn = model.clock.elapsedTime;
+
+            //DEPRECATED because only one model will be used
+
+            //random integer between 0-2 for the 3 enemies
+
+            //var randEnemy = Math.floor(Math.random() * 10) % 2;
+
+            //random integer between 0-8 to add it into one of the 9 squares of the map
+
+            var randScene = Math.floor(Math.random() * 100) % 9;
+
+            //random integers por the position x and z
+
+            //to make a number between -200 and 200 excluding [-25,25]
+            var randX = (Math.floor(Math.random() * 1000) % 400) - 200;
+
+            if (randX <= 25 && randX >= -25) {
+                //preserve sign
+                randX = (randX / Math.abs(randX)) * 26;
+            }
+
+            var randZ = (Math.floor(Math.random() * 1000) % 400) - 200;
+            if (randZ <= 25 && randZ >= -25) {
+                //preserve sign
+                randZ = (randZ / Math.abs(randZ)) * 26;
+            }
+            var randomMapToBePositioned = completeMap[Object.keys(completeMap)[randScene]];
+
+            //adding the x and z coordinates of the random map so it can be placed anywhere in the map
+
+            randX += randomMapToBePositioned.position.x;
+            randZ += randomMapToBePositioned.position.z;
+
+
+            var enemyClone = enemies["enemy_0"].clone();
+            console.log('Adding to Scene');
+            console.log(enemyClone);
+            scene.add(enemyClone.scene);
+
+            enemyClone.scene.position.set(randX, 10, randZ);
+            enemyClone.scene.scale.set(20, 20, 20);
+
+            //var v = new THREE.Vector3();
+            //v.copy(enemyClone.scene.position);
+            //enemyClone.scene.getWorldPosition(v)
+            //enemyClone.raycaster.ray.origin.copy(v);
+            //  console.log(enemyClone);
+            //  console.log(v);
+
+
+            //identify the container so it can be later removed
+            enemyClone.scene.isContainer = true;
+            enemyClone.run();
+
+
+
+            //map enemy scene with uuid so the removes and manipulations would be easier
+            var uuid = enemyClone.scene.uuid;
+            console.log("adding to currentEnemies and in scene");
+            //console.log()
+            currentEnemies[uuid] = enemyClone;
+            console.log(currentEnemies);
+            currentEnemiesInScene.push(enemyClone.scene);
+            console.log(currentEnemiesInScene);
+
+            //enemyClone.sprite.center.set(0.5, 0.5)
+            //switch (enemyIndex) {
+            //    case 'enemy_0':
+            //        enemyClone.loop([0, 9, 18, 27], 1);
+            //        break;
+            //
+            //    case 'enemy_1':
+            //        enemyClone.loop([0, 6, 12, 18], 0.75);
+            //        break;
+
+            /* case 'enemy_2':
+                 enemyClone.loop([0, 10, 20, 30], 1);
+                 break;
+            // }
+            // enemyClone.sprite._camera = camera;
+ 
+            //map sprite uuid with enemyController
+            // var uuid = enemyClone.sprite.uuid;
+            //currentEnemies[uuid] = enemyClone;
+ 
+            //console.log('Creado');
+            // console.log(currentEnemies);
+ 
+            // currentEnemies.push(enemyClone);
+            // currentEnemiesInScene.push(enemyClone.sprite);
+            //*/
+
+
+        }
+        //  labelRenderer.render(scene, camera);
+        //renderer.render(sceneOrtho, cameraOrtho)
+
+
+        //renderer.render(sceneOrtho, cameraOrtho);*/
+    }
+    //recursive function to find container
+    function getContainer(object) {
+        if (object.isContainer == true) {
+            return object;
+        }
+        else if (object.parent != null) return getContainer(object.parent);
+        else return null;
+    }
+
+    function start() {
+        initModel()
+        // initGUI()
+        initScene()
+        initKeys(canvas)
+        initEnemies()
+
+
+        //ctx = canvas.getContext('2d');
+
+        //imageObj1 = new Image();
+
+
+        //imageObj1.src = "moretextures/health-100.png";
+
+
+
+        // Option 1: Call update only when something changed 
+        //update() // Update scenegraph and draw for first time
+        // Option 2: Call update inside tick at video framerate
+        tick() // Start animation
+    }
+
+    // Export to global scope to be visible from HTML
+    window.start = start
+    window.render = render
+    window.update = update
+        // Add any function you want to call from the console
+
+</script>
+
+<body onload='start();'>
+
+    <div style="float: left;">
+        <canvas id="canvasID" width="1650" height="800"></canvas>
+        <br>Game- Gabriel A. Santiago Plaza
+        <br>Use <b>Mouse</b> to move camera
+        <br>Use <b>WASD</b> to move
+        <br>Use <b>LeftClick</b> to Schoot
+        <br>
+
+        <iframe
+            src="https://docs.google.com/forms/d/e/1FAIpQLSdmQ0XCSrK814mpQlIY4qiOYRyvA65VYmf6_CVWmzdmyhpPlA/viewform?embedded=true"
+            width="640" height="802" frameborder="0" marginheight="0" marginwidth="0">Loading…</iframe>
+    </div>
+
+</body>
+
+</html>

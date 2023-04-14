@@ -1,0 +1,11 @@
+Model Information:
+* title:	Robot Expressive
+* source:	https://sketchfab.com/3d-models/robot-expressive-190ef77551c14273a9b4145f06f35dc1
+* author:	vr-go (https://sketchfab.com/vr-go)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Robot Expressive" (https://sketchfab.com/3d-models/robot-expressive-190ef77551c14273a9b4145f06f35dc1) by vr-go (https://sketchfab.com/vr-go) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
